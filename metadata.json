@@ -1,0 +1,8 @@
+{
+  "name": "AcctSolver AI",
+  "description": "A professional AI tutor for accounting and commerce students, capable of solving complex numericals step-by-step and explaining theory with examples.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}

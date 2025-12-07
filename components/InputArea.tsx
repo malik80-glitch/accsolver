@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Image as ImageIcon, X, Loader2, Lightbulb, Zap, Mic, MicOff, Camera, PieChart, ScanText, Paperclip, FileText } from 'lucide-react';
+import { Send, Image as ImageIcon, X, Loader2, Lightbulb, Zap, Mic, MicOff, Camera, PieChart, ScanText, Paperclip, FileText, FileSpreadsheet } from 'lucide-react';
 import { Attachment } from '../types';
 
 interface InputAreaProps {
@@ -80,10 +80,30 @@ const InputArea: React.FC<InputAreaProps> = ({ onSendMessage, isLoading, onExtra
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       const reader = new FileReader();
+      
       reader.onloadend = () => {
+        let mimeType = file.type;
+        const ext = file.name.split('.').pop()?.toLowerCase();
+
+        // Robust MIME type detection
+        // Browsers often miss CSV, MD, or return generic octet-stream for unknown types
+        if (!mimeType || mimeType === 'application/octet-stream') {
+            switch (ext) {
+                case 'csv': mimeType = 'text/csv'; break;
+                case 'md': mimeType = 'text/markdown'; break;
+                case 'json': mimeType = 'application/json'; break;
+                case 'pdf': mimeType = 'application/pdf'; break;
+                case 'txt': mimeType = 'text/plain'; break;
+                case 'tsv': mimeType = 'text/tab-separated-values'; break;
+                case 'xml': mimeType = 'text/xml'; break;
+                case 'yml': 
+                case 'yaml': mimeType = 'text/yaml'; break;
+            }
+        }
+
         setSelectedAttachment({
           data: reader.result as string,
-          mimeType: file.type,
+          mimeType: mimeType || 'application/octet-stream',
           name: file.name
         });
       };
@@ -215,13 +235,21 @@ const InputArea: React.FC<InputAreaProps> = ({ onSendMessage, isLoading, onExtra
 
   // Helper to determine if attachment is an image
   const isImage = selectedAttachment?.mimeType.startsWith('image/');
+  
+  // Helper for file icon based on type
+  const getFileIcon = (mimeType: string) => {
+    if (mimeType.includes('pdf')) return <FileText className="text-red-500" size={24} />;
+    if (mimeType.includes('csv') || mimeType.includes('excel') || mimeType.includes('spreadsheet')) return <FileSpreadsheet className="text-emerald-500" size={24} />;
+    if (mimeType.includes('text') || mimeType.includes('plain')) return <FileText className="text-slate-500" size={24} />;
+    return <FileText className="text-brand-500" size={24} />;
+  };
 
   return (
     <div className="w-full bg-white border-t border-slate-200 p-4">
       <div className="max-w-4xl mx-auto">
         {/* Attachment Preview */}
         {selectedAttachment && (
-          <div className="relative inline-block mb-3 group">
+          <div className="relative inline-block mb-3 group animate-in fade-in zoom-in duration-200">
             {isImage ? (
               <img 
                 src={selectedAttachment.data} 
@@ -229,18 +257,18 @@ const InputArea: React.FC<InputAreaProps> = ({ onSendMessage, isLoading, onExtra
                 className="h-24 w-auto rounded-lg border border-slate-200 shadow-sm" 
               />
             ) : (
-              <div className="h-24 w-48 bg-slate-100 rounded-lg border border-slate-200 flex flex-col items-center justify-center p-3 text-center">
-                <div className="bg-white p-2 rounded-full mb-2">
-                  <FileText className="text-brand-600" size={20} />
+              <div className="h-24 w-48 bg-slate-50 rounded-lg border border-slate-200 flex flex-col items-center justify-center p-3 text-center shadow-sm">
+                <div className="bg-white p-2 rounded-full mb-2 shadow-sm">
+                  {getFileIcon(selectedAttachment.mimeType)}
                 </div>
-                <span className="text-xs text-slate-600 font-medium truncate w-full">{selectedAttachment.name}</span>
-                <span className="text-[10px] text-slate-400 uppercase">{selectedAttachment.mimeType.split('/')[1] || 'FILE'}</span>
+                <span className="text-xs text-slate-700 font-medium truncate w-full px-1">{selectedAttachment.name}</span>
+                <span className="text-[10px] text-slate-400 uppercase font-mono mt-0.5">{selectedAttachment.mimeType.split('/')[1] || 'FILE'}</span>
               </div>
             )}
             
             <button
               onClick={removeAttachment}
-              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors z-10"
+              className="absolute -top-2 -right-2 bg-slate-800 text-white rounded-full p-1 shadow-md hover:bg-red-500 transition-colors z-20"
               title="Remove attachment"
             >
               <X size={12} />
@@ -250,7 +278,7 @@ const InputArea: React.FC<InputAreaProps> = ({ onSendMessage, isLoading, onExtra
               <button
                 onClick={handleScan}
                 disabled={isExtracting}
-                className="absolute -bottom-2 -right-2 bg-indigo-500 text-white rounded-full p-1 shadow-md hover:bg-indigo-600 transition-colors disabled:opacity-70 z-10"
+                className="absolute -bottom-2 -right-2 bg-indigo-500 text-white rounded-full p-1 shadow-md hover:bg-indigo-600 transition-colors disabled:opacity-70 z-20"
                 title="Extract text from image (OCR)"
               >
                 {isExtracting ? <Loader2 size={12} className="animate-spin" /> : <ScanText size={12} />}

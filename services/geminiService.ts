@@ -11,6 +11,31 @@ interface GeminiResponse {
   generatedImage?: string;
 }
 
+// Helper to determine if a mime type is text-based and should be decoded
+const isTextBased = (mimeType: string) => {
+  return mimeType.startsWith('text/') || 
+         mimeType === 'application/json' ||
+         mimeType === 'application/xml' || 
+         mimeType === 'application/x-yaml' ||
+         mimeType.includes('csv') || 
+         mimeType.includes('script');
+};
+
+// Helper to safely decode base64 text content (handling UTF-8)
+const decodeBase64Text = (base64: string): string => {
+  try {
+    const binaryString = atob(base64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return new TextDecoder().decode(bytes);
+  } catch (e) {
+    console.error("Failed to decode base64 text:", e);
+    return "";
+  }
+};
+
 export const sendMessageToGemini = async (
   prompt: string,
   history: Message[] = [],
@@ -63,12 +88,24 @@ export const sendMessageToGemini = async (
       // Handle new attachment structure
       if (msg.attachment) {
         const base64Data = msg.attachment.data.split(',')[1] || msg.attachment.data;
-        parts.push({
-          inlineData: {
-            mimeType: msg.attachment.mimeType,
-            data: base64Data,
-          },
-        });
+        
+        // If text-based (CSV, TXT, MD), send as text part for better reasoning
+        if (isTextBased(msg.attachment.mimeType)) {
+          const textContent = decodeBase64Text(base64Data);
+          parts.push({ 
+            text: `[Attached File: ${msg.attachment.name}]\n${textContent}\n[End of File]` 
+          });
+        } 
+        // If PDF or Image, send as inlineData with a text hint
+        else {
+          parts.push({ text: `[Attached File: ${msg.attachment.name}]` });
+          parts.push({
+            inlineData: {
+              mimeType: msg.attachment.mimeType,
+              data: base64Data,
+            },
+          });
+        }
       } 
       // Handle legacy image structure
       else if (msg.image) {
@@ -97,12 +134,21 @@ export const sendMessageToGemini = async (
       // Remove data URL prefix if present
       const base64Data = attachment.data.split(',')[1] || attachment.data;
       
-      currentParts.push({
-        inlineData: {
-          mimeType: attachment.mimeType,
-          data: base64Data,
-        },
-      });
+      if (isTextBased(attachment.mimeType)) {
+        const textContent = decodeBase64Text(base64Data);
+        currentParts.push({ 
+           text: `[Attached File: ${attachment.name}]\n${textContent}\n[End of File]\n\n` 
+        });
+      } else {
+        // Provide context about the file name for PDFs/Images
+        currentParts.push({ text: `[Attached File: ${attachment.name}]` });
+        currentParts.push({
+          inlineData: {
+            mimeType: attachment.mimeType,
+            data: base64Data,
+          },
+        });
+      }
     }
 
     // Add text prompt
